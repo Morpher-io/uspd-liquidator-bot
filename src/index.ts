@@ -1,25 +1,25 @@
 import 'dotenv/config'
 import { createPublicClient, http, createWalletClient, webSocket, Address } from 'viem'
-import { mainnet } from 'viem/chains'
+import { mainnet, sepolia } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { PriceService } from './services/PriceService.js'
 import { PositionService } from './services/PositionService.js'
 import { LiquidationService } from './services/LiquidationService.js'
+import { DeploymentService } from './services/DeploymentService.js'
 
 // Configuration - require all environment variables
 const RPC_URL = process.env.RPC_URL
 const WS_RPC_URL = process.env.WS_RPC_URL
 const PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`
 
-// Contract addresses
-const STABILIZER_NFT_ADDRESS = process.env.STABILIZER_NFT_ADDRESS as Address
-const USPD_TOKEN_ADDRESS = process.env.USPD_TOKEN_ADDRESS as Address
-const PRICE_ORACLE_ADDRESS = process.env.PRICE_ORACLE_ADDRESS as Address
+// Network configuration
+const CHAIN_ID = parseInt(process.env.CHAIN_ID || '1')
+const LIQUIDATOR_NFT_ID = BigInt(process.env.LIQUIDATOR_NFT_ID || '0')
 
 // Bot configuration
 const MIN_PROFIT_THRESHOLD = process.env.MIN_PROFIT_THRESHOLD || '0.01'
 const PRICE_UPDATE_INTERVAL = parseInt(process.env.PRICE_UPDATE_INTERVAL || '30000') // 30 seconds
-const POSITION_UPDATE_INTERVAL = parseInt(process.env.POSITION_UPDATE_INTERVAL || '60000') // 1 minute
+const POSITION_UPDATE_INTERVAL = parseInt(process.env.POSITION_UPDATE_INTERVAL || '300000') // 5 minutes
 
 // Validate required environment variables
 if (!RPC_URL) {
@@ -31,48 +31,41 @@ if (!WS_RPC_URL) {
 if (!PRIVATE_KEY) {
   throw new Error('PRIVATE_KEY environment variable is required')
 }
-if (!STABILIZER_NFT_ADDRESS) {
-  throw new Error('STABILIZER_NFT_ADDRESS environment variable is required')
-}
-if (!USPD_TOKEN_ADDRESS) {
-  throw new Error('USPD_TOKEN_ADDRESS environment variable is required')
-}
+
+// Determine chain
+const chain = CHAIN_ID === 11155111 ? sepolia : mainnet;
 
 // Set up clients
 const publicClient = createPublicClient({
-  chain: mainnet,
+  chain,
   transport: http(RPC_URL),
 })
 
 const wsClient = createPublicClient({
-  chain: mainnet,
+  chain,
   transport: webSocket(WS_RPC_URL),
 })
 
 const walletClient = createWalletClient({
-  chain: mainnet,
+  chain,
   transport: http(RPC_URL),
   account: privateKeyToAccount(PRIVATE_KEY),
 })
 
 class USPDLiquidatorBot {
   private isRunning = false
+  private deploymentService: DeploymentService
   private priceService: PriceService
   private positionService: PositionService
   private liquidationService: LiquidationService
   private priceUpdateTimer?: NodeJS.Timeout
   private positionUpdateTimer?: NodeJS.Timeout
+  private contractAddresses: any
 
   constructor() {
+    this.deploymentService = new DeploymentService()
     this.priceService = new PriceService()
-    this.positionService = new PositionService(publicClient, STABILIZER_NFT_ADDRESS)
-    this.liquidationService = new LiquidationService(
-      publicClient,
-      walletClient,
-      STABILIZER_NFT_ADDRESS,
-      USPD_TOKEN_ADDRESS,
-      MIN_PROFIT_THRESHOLD
-    )
+    // Services will be initialized after fetching contract addresses
   }
 
   async start() {
@@ -105,23 +98,65 @@ class USPDLiquidatorBot {
       clearInterval(this.positionUpdateTimer)
     }
 
+    // Stop event watchers
+    this.eventUnwatchers.forEach(unwatch => {
+      try {
+        unwatch()
+      } catch (error) {
+        console.error('❌ Error stopping event watcher:', error)
+      }
+    })
+
     console.log('✅ Bot stopped successfully')
   }
 
   private async initializeServices() {
     console.log('🔧 Initializing services...')
 
+    // Fetch contract deployments
+    console.log('📡 Fetching USPD contract deployments...')
+    await this.deploymentService.fetchDeployments()
+    this.contractAddresses = this.deploymentService.getContractAddresses(CHAIN_ID)
+    
+    console.log('📋 Contract addresses:')
+    console.log(`  Stabilizer NFT: ${this.contractAddresses.stabilizerNft}`)
+    console.log(`  USPD Token: ${this.contractAddresses.uspdToken}`)
+    console.log(`  Oracle: ${this.contractAddresses.oracle}`)
+
+    // Initialize services with contract addresses
+    this.positionService = new PositionService(
+      publicClient, 
+      this.contractAddresses.stabilizerNft,
+      LIQUIDATOR_NFT_ID
+    )
+    
+    this.liquidationService = new LiquidationService(
+      publicClient,
+      walletClient,
+      this.contractAddresses.stabilizerNft,
+      this.contractAddresses.uspdToken,
+      MIN_PROFIT_THRESHOLD
+    )
+
     // Get initial block number
     const blockNumber = await publicClient.getBlockNumber()
     console.log(`📊 Current block: ${blockNumber}`)
 
     // Initialize position tracking
+    console.log('🔍 Discovering and initializing positions...')
     await this.positionService.initializePositions()
 
-    // Get initial price data
+    // Get initial price data and update positions
     const priceData = await this.priceService.getCurrentEthPrice()
     const ethPrice = this.priceService.priceToNumber(priceData)
     console.log(`💰 Current ETH price: $${ethPrice.toFixed(2)}`)
+
+    // Update all positions with current price
+    await this.positionService.updateAllPositions(priceData)
+
+    // Log position statistics
+    const stats = this.positionService.getPositionStats()
+    console.log(`📊 Position stats: ${stats.active} active, ${stats.liquidatable} liquidatable, avg ratio: ${stats.averageCollateralization.toFixed(2)}%`)
   }
 
   private async startMonitoring() {
@@ -171,13 +206,15 @@ class USPDLiquidatorBot {
       try {
         // Get current price for position updates
         const priceData = await this.priceService.getCurrentEthPrice()
-        const ethPrice = this.priceService.priceToNumber(priceData)
-
-        // Update all positions (this would be optimized in production)
-        console.log('🔄 Updating position data...')
         
-        // TODO: Implement efficient position updates
-        // In production, this would be event-driven rather than polling
+        // Update all positions
+        console.log('🔄 Updating all position data...')
+        await this.positionService.updateAllPositions(priceData)
+        
+        // Log updated statistics
+        const stats = this.positionService.getPositionStats()
+        console.log(`📊 Updated positions: ${stats.active} active, ${stats.liquidatable} liquidatable, avg: ${stats.averageCollateralization.toFixed(2)}%`)
+        
       } catch (error) {
         console.error('❌ Position monitoring error:', error)
       }
@@ -202,11 +239,37 @@ class USPDLiquidatorBot {
       }
     })
 
-    // TODO: Add specific contract event watching
-    // - StabilizerNFT position changes
-    // - USPD minting/burning events
-    // - Price oracle updates
+    // Watch for new Stabilizer NFT positions
+    const unwatchNFTCreation = wsClient.watchContractEvent({
+      address: this.contractAddresses.stabilizerNft,
+      abi: [{
+        name: 'StabilizerPositionCreated',
+        type: 'event',
+        inputs: [
+          { name: 'tokenId', type: 'uint256', indexed: true },
+          { name: 'owner', type: 'address', indexed: true }
+        ]
+      }],
+      eventName: 'StabilizerPositionCreated',
+      onLogs: (logs) => {
+        logs.forEach(async (log) => {
+          const { tokenId, owner } = log.args;
+          console.log(`➕ New Stabilizer Position created: ${tokenId} owned by ${owner}`);
+          if (tokenId) {
+            await this.positionService.addPosition(tokenId);
+          }
+        });
+      },
+      onError: (error) => {
+        console.error('❌ NFT creation event error:', error)
+      }
+    })
+
+    // Store unwatchers for cleanup
+    this.eventUnwatchers = [unwatch, unwatchNFTCreation]
   }
+
+  private eventUnwatchers: (() => void)[] = []
 
   private async checkLiquidationOpportunities(priceData: any) {
     try {
