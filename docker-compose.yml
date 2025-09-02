@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  liquidator:
+    build: .
+    container_name: uspd-liquidator
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./logs:/app/logs
+    # Uncomment if you need health checks
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
