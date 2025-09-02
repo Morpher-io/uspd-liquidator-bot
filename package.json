@@ -1,0 +1,18 @@
+{
+  "name": "uspd-liquidator-example",
+  "version": "0.1.0",
+  "description": "An example of a liquidator for USPD",
+  "keywords": [
+    "uspd",
+    "liquidator",
+    "stabilizer",
+    "example"
+  ],
+  "license": "MIT",
+  "author": "Thomas Wiesner",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
