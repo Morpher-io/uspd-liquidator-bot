@@ -3,10 +3,21 @@ import { createPublicClient, http, createWalletClient, webSocket } from 'viem'
 import { mainnet } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 
-// Configuration
-const RPC_URL = process.env.RPC_URL || 'https://eth-mainnet.g.alchemy.com/v2/your-api-key'
-const WS_RPC_URL = process.env.WS_RPC_URL || 'wss://eth-mainnet.g.alchemy.com/v2/your-api-key'
+// Configuration - require all environment variables
+const RPC_URL = process.env.RPC_URL
+const WS_RPC_URL = process.env.WS_RPC_URL
 const PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`
+
+// Validate required environment variables
+if (!RPC_URL) {
+  throw new Error('RPC_URL environment variable is required')
+}
+if (!WS_RPC_URL) {
+  throw new Error('WS_RPC_URL environment variable is required')
+}
+if (!PRIVATE_KEY) {
+  throw new Error('PRIVATE_KEY environment variable is required')
+}
 
 // Set up clients
 const publicClient = createPublicClient({
