@@ -6,11 +6,13 @@ import { PriceService } from './services/PriceService.js'
 import { PositionService } from './services/PositionService.js'
 import { LiquidationService } from './services/LiquidationService.js'
 import { DeploymentService } from './services/DeploymentService.js'
+import { AbiService } from './services/AbiService.js'
 
 // Configuration - require all environment variables
 const RPC_URL = process.env.RPC_URL
 const WS_RPC_URL = process.env.WS_RPC_URL
 const PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY
 
 // Network configuration
 const CHAIN_ID = parseInt(process.env.CHAIN_ID || '1')
@@ -30,6 +32,9 @@ if (!WS_RPC_URL) {
 }
 if (!PRIVATE_KEY) {
   throw new Error('PRIVATE_KEY environment variable is required')
+}
+if (!ETHERSCAN_API_KEY) {
+  throw new Error('ETHERSCAN_API_KEY environment variable is required')
 }
 
 // Determine chain
@@ -55,6 +60,7 @@ const walletClient = createWalletClient({
 class USPDLiquidatorBot {
   private isRunning = false
   private deploymentService: DeploymentService
+  private abiService: AbiService
   private priceService: PriceService
   private positionService: PositionService
   private liquidationService: LiquidationService
@@ -64,6 +70,7 @@ class USPDLiquidatorBot {
 
   constructor() {
     this.deploymentService = new DeploymentService()
+    this.abiService = new AbiService(ETHERSCAN_API_KEY!, CHAIN_ID)
     this.priceService = new PriceService()
     // Services will be initialized after fetching contract addresses
   }
@@ -127,6 +134,8 @@ class USPDLiquidatorBot {
     this.positionService = new PositionService(
       publicClient, 
       this.contractAddresses.stabilizerNft,
+      this.contractAddresses.positionEscrowImpl,
+      this.abiService,
       LIQUIDATOR_NFT_ID
     )
     
@@ -239,34 +248,37 @@ class USPDLiquidatorBot {
       }
     })
 
-    // Watch for new Stabilizer NFT positions
-    const unwatchNFTCreation = wsClient.watchContractEvent({
-      address: this.contractAddresses.stabilizerNft,
-      abi: [{
-        name: 'StabilizerPositionCreated',
-        type: 'event',
-        inputs: [
-          { name: 'tokenId', type: 'uint256', indexed: true },
-          { name: 'owner', type: 'address', indexed: true }
-        ]
-      }],
-      eventName: 'StabilizerPositionCreated',
-      onLogs: (logs) => {
-        logs.forEach(async (log) => {
-          const { tokenId, owner } = log.args;
-          console.log(`➕ New Stabilizer Position created: ${tokenId} owned by ${owner}`);
-          if (tokenId) {
-            await this.positionService.addPosition(tokenId);
-          }
-        });
-      },
-      onError: (error) => {
-        console.error('❌ NFT creation event error:', error)
-      }
-    })
+    // Watch for new Stabilizer NFT positions - we'll get the ABI dynamically
+    const stabilizerAbi = await this.abiService.getContractAbi(this.contractAddresses.stabilizerNft);
+    const positionCreatedEvent = stabilizerAbi.find(item => 
+      item.type === 'event' && item.name === 'StabilizerPositionCreated'
+    );
+
+    if (positionCreatedEvent) {
+      const unwatchNFTCreation = wsClient.watchContractEvent({
+        address: this.contractAddresses.stabilizerNft,
+        abi: [positionCreatedEvent],
+        eventName: 'StabilizerPositionCreated',
+        onLogs: (logs) => {
+          logs.forEach(async (log) => {
+            const { tokenId, owner } = log.args;
+            console.log(`➕ New Stabilizer Position created: ${tokenId} owned by ${owner}`);
+            if (tokenId) {
+              await this.positionService.addPosition(tokenId);
+            }
+          });
+        },
+        onError: (error) => {
+          console.error('❌ NFT creation event error:', error)
+        }
+      })
+      
+      // Store unwatcher for cleanup
+      this.eventUnwatchers.push(unwatchNFTCreation)
+    }
 
     // Store unwatchers for cleanup
-    this.eventUnwatchers = [unwatch, unwatchNFTCreation]
+    this.eventUnwatchers.push(unwatch)
   }
 
   private eventUnwatchers: (() => void)[] = []

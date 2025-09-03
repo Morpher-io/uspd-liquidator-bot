@@ -1,5 +1,6 @@
 import { PublicClient, Address, parseUnits, keccak256, toBytes } from 'viem';
 import { PriceData } from './PriceService.js';
+import { AbiService } from './AbiService.js';
 
 export interface StabilizerPosition {
   nftId: bigint;
@@ -7,111 +8,35 @@ export interface StabilizerPosition {
   positionEscrowAddress: Address;
   collateralAmount: bigint;
   backedShares: bigint;
+  uspdDebt: bigint;
   collateralizationRatio: number;
   isLiquidatable: boolean;
   liquidationThreshold: number;
   lastUpdated: number;
 }
 
-// Basic ABI definitions - in production, these would be imported from generated types
-const STABILIZER_NFT_ABI = [
-  {
-    name: 'totalSupply',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'uint256' }]
-  },
-  {
-    name: 'ownerOf',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ type: 'uint256' }],
-    outputs: [{ type: 'address' }]
-  },
-  {
-    name: 'positionEscrows',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ type: 'uint256' }],
-    outputs: [{ type: 'address' }]
-  },
-  {
-    name: 'StabilizerPositionCreated',
-    type: 'event',
-    inputs: [
-      { name: 'tokenId', type: 'uint256', indexed: true },
-      { name: 'owner', type: 'address', indexed: true }
-    ]
-  }
-] as const;
-
-const POSITION_ESCROW_ABI = [
-  {
-    name: 'getCurrentStEthBalance',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'uint256' }]
-  },
-  {
-    name: 'backedPoolShares',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'uint256' }]
-  },
-  {
-    name: 'getCollateralizationRatio',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ 
-      type: 'tuple',
-      components: [
-        { name: 'price', type: 'uint256' },
-        { name: 'decimals', type: 'uint8' },
-        { name: 'dataTimestamp', type: 'uint256' },
-        { name: 'assetPair', type: 'bytes32' },
-        { name: 'signature', type: 'bytes' }
-      ]
-    }],
-    outputs: [{ type: 'uint256' }]
-  },
-  {
-    name: 'CollateralAdded',
-    type: 'event',
-    inputs: [
-      { name: 'amount', type: 'uint256', indexed: false }
-    ]
-  },
-  {
-    name: 'CollateralRemoved',
-    type: 'event',
-    inputs: [
-      { name: 'recipient', type: 'address', indexed: true },
-      { name: 'amount', type: 'uint256', indexed: false }
-    ]
-  },
-  {
-    name: 'AllocationModified',
-    type: 'event',
-    inputs: [
-      { name: 'sharesDelta', type: 'int256', indexed: false },
-      { name: 'newTotalShares', type: 'uint256', indexed: false }
-    ]
-  }
-] as const;
-
 export class PositionService {
   private positions: Map<string, StabilizerPosition> = new Map();
   private positionEscrowAddresses: Map<string, Address> = new Map();
   private stabilizerNftAddress: Address;
+  private positionEscrowImplAddress: Address;
   private publicClient: PublicClient;
   private liquidatorNftId: bigint;
+  private abiService: AbiService;
+  private stabilizerNftAbi: any[] = [];
+  private positionEscrowAbi: any[] = [];
 
-  constructor(publicClient: PublicClient, stabilizerNftAddress: Address, liquidatorNftId: bigint = 0n) {
+  constructor(
+    publicClient: PublicClient, 
+    stabilizerNftAddress: Address, 
+    positionEscrowImplAddress: Address,
+    abiService: AbiService,
+    liquidatorNftId: bigint = 0n
+  ) {
     this.publicClient = publicClient;
     this.stabilizerNftAddress = stabilizerNftAddress;
+    this.positionEscrowImplAddress = positionEscrowImplAddress;
+    this.abiService = abiService;
     this.liquidatorNftId = liquidatorNftId;
   }
 
@@ -122,10 +47,13 @@ export class PositionService {
     console.log('🔍 Initializing stabilizer positions...');
     
     try {
+      // Load ABIs first
+      await this.loadAbis();
+
       // Get total supply of Stabilizer NFTs
       const totalSupply = await this.publicClient.readContract({
         address: this.stabilizerNftAddress,
-        abi: STABILIZER_NFT_ABI,
+        abi: this.stabilizerNftAbi,
         functionName: 'totalSupply'
       });
 
@@ -155,6 +83,26 @@ export class PositionService {
   }
 
   /**
+   * Load ABIs from cache or fetch from Etherscan
+   */
+  private async loadAbis(): Promise<void> {
+    try {
+      console.log('📋 Loading contract ABIs...');
+      
+      // Load Stabilizer NFT ABI
+      this.stabilizerNftAbi = await this.abiService.getContractAbi(this.stabilizerNftAddress);
+      
+      // Load Position Escrow Implementation ABI
+      this.positionEscrowAbi = await this.abiService.getContractAbi(this.positionEscrowImplAddress);
+      
+      console.log('✅ Contract ABIs loaded successfully');
+    } catch (error) {
+      console.error('❌ Failed to load ABIs:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Initialize a single position
    */
   private async initializePosition(nftId: bigint): Promise<void> {
@@ -162,7 +110,7 @@ export class PositionService {
       // Get position escrow address
       const positionEscrowAddress = await this.publicClient.readContract({
         address: this.stabilizerNftAddress,
-        abi: STABILIZER_NFT_ABI,
+        abi: this.stabilizerNftAbi,
         functionName: 'positionEscrows',
         args: [nftId]
       }) as Address;
@@ -175,23 +123,28 @@ export class PositionService {
       // Get owner
       const owner = await this.publicClient.readContract({
         address: this.stabilizerNftAddress,
-        abi: STABILIZER_NFT_ABI,
+        abi: this.stabilizerNftAbi,
         functionName: 'ownerOf',
         args: [nftId]
       }) as Address;
 
       // Get position data from escrow
-      const [collateralAmount, backedShares] = await Promise.all([
+      const [collateralAmount, backedShares, uspdDebt] = await Promise.all([
         this.publicClient.readContract({
           address: positionEscrowAddress,
-          abi: POSITION_ESCROW_ABI,
+          abi: this.positionEscrowAbi,
           functionName: 'getCurrentStEthBalance'
         }),
         this.publicClient.readContract({
           address: positionEscrowAddress,
-          abi: POSITION_ESCROW_ABI,
+          abi: this.positionEscrowAbi,
           functionName: 'backedPoolShares'
-        })
+        }),
+        this.publicClient.readContract({
+          address: positionEscrowAddress,
+          abi: this.positionEscrowAbi,
+          functionName: 'getUspdDebt'
+        }).catch(() => 0n) // Fallback if method doesn't exist
       ]);
 
       // Store position
@@ -201,6 +154,7 @@ export class PositionService {
         positionEscrowAddress,
         collateralAmount: collateralAmount as bigint,
         backedShares: backedShares as bigint,
+        uspdDebt: uspdDebt as bigint,
         collateralizationRatio: 0, // Will be calculated when price is available
         isLiquidatable: false,
         liquidationThreshold: this.calculateLiquidationThreshold(this.liquidatorNftId),
@@ -238,7 +192,7 @@ export class PositionService {
       // Get updated collateralization ratio from contract
       const ratioRaw = await this.publicClient.readContract({
         address: position.positionEscrowAddress,
-        abi: POSITION_ESCROW_ABI,
+        abi: this.positionEscrowAbi,
         functionName: 'getCollateralizationRatio',
         args: [priceQuery]
       }) as bigint;
