@@ -1,4 +1,4 @@
-import { PublicClient, Address, getContract, parseUnits, keccak256, toBytes, formatEther } from 'viem';
+import { PublicClient, Address, parseUnits, keccak256, toBytes } from 'viem';
 import { PriceData } from './PriceService.js';
 
 export interface StabilizerPosition {
