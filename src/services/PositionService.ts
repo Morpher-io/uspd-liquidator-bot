@@ -1,4 +1,4 @@
-import { PublicClient, Address, parseUnits, keccak256, toBytes } from 'viem';
+import { PublicClient, Address, parseUnits } from 'viem';
 import { PriceData } from './PriceService.js';
 import { AbiService } from './AbiService.js';
 
@@ -129,7 +129,7 @@ export class PositionService {
       }) as Address;
 
       // Get position data from escrow
-      const [collateralAmount, backedShares, uspdDebt] = await Promise.all([
+      const [collateralAmount, backedShares] = await Promise.all([
         this.publicClient.readContract({
           address: positionEscrowAddress,
           abi: this.positionEscrowAbi,
@@ -139,13 +139,11 @@ export class PositionService {
           address: positionEscrowAddress,
           abi: this.positionEscrowAbi,
           functionName: 'backedPoolShares'
-        }),
-        this.publicClient.readContract({
-          address: positionEscrowAddress,
-          abi: this.positionEscrowAbi,
-          functionName: 'getUspdDebt'
-        }).catch(() => 0n) // Fallback if method doesn't exist
+        })
       ]);
+
+      // Calculate USPD debt from backed shares (1:1 ratio typically)
+      const uspdDebt = backedShares;
 
       // Store position
       const position: StabilizerPosition = {
@@ -180,13 +178,11 @@ export class PositionService {
         return;
       }
 
-      // Create price query for contract call
-      const priceQuery = {
+      // Create price response for contract call (simplified structure)
+      const priceResponse = {
         price: parseUnits(priceData.price, 0), // Price is already in wei format
         decimals: priceData.decimals,
-        dataTimestamp: BigInt(Math.floor(priceData.dataTimestamp / 1000)),
-        assetPair: keccak256(toBytes("ETH/USD")),
-        signature: priceData.signature as `0x${string}`
+        timestamp: BigInt(Math.floor(priceData.dataTimestamp / 1000))
       };
 
       // Get updated collateralization ratio from contract
@@ -194,7 +190,7 @@ export class PositionService {
         address: position.positionEscrowAddress,
         abi: this.positionEscrowAbi,
         functionName: 'getCollateralizationRatio',
-        args: [priceQuery]
+        args: [priceResponse]
       }) as bigint;
 
       // Convert ratio from basis points (10000 = 100%) to percentage

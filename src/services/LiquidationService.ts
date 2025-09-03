@@ -1,6 +1,6 @@
 import { PublicClient, WalletClient, Address, parseEther } from 'viem';
 import { StabilizerPosition } from './PositionService.js';
-import { PriceData } from './PriceService.js';
+import { PriceData, PriceService } from './PriceService.js';
 
 export interface LiquidationResult {
   success: boolean;
@@ -15,18 +15,21 @@ export class LiquidationService {
   private stabilizerNftAddress: Address;
   private uspdTokenAddress: Address;
   private minProfitThreshold: bigint;
+  private priceService: PriceService;
 
   constructor(
     publicClient: PublicClient,
     walletClient: WalletClient,
     stabilizerNftAddress: Address,
     uspdTokenAddress: Address,
+    priceService: PriceService,
     minProfitThreshold: string = '0.01' // ETH
   ) {
     this.publicClient = publicClient;
     this.walletClient = walletClient;
     this.stabilizerNftAddress = stabilizerNftAddress;
     this.uspdTokenAddress = uspdTokenAddress;
+    this.priceService = priceService;
     this.minProfitThreshold = parseEther(minProfitThreshold);
   }
 
@@ -45,8 +48,7 @@ export class LiquidationService {
       const hasEnoughUspd = await this.checkUspdBalance(requiredUspd);
       
       if (!hasEnoughUspd) {
-        // TODO: Implement USPD acquisition (buy from DEX or mint)
-        console.log('💰 Need to acquire USPD for liquidation');
+        console.log(`💰 Need ${requiredUspd} USPD for liquidation`);
         return { success: false, error: 'Insufficient USPD balance' };
       }
 
@@ -60,6 +62,7 @@ export class LiquidationService {
 
       // 3. Execute liquidation transaction
       console.log(`💎 Expected profit: ${expectedProfit} ETH`);
+      console.log(`💰 Required USPD: ${requiredUspd}`);
       
       // TODO: Implement actual liquidation transaction
       // This would call StabilizerNFT.liquidatePosition()
@@ -81,8 +84,23 @@ export class LiquidationService {
    */
   private async checkUspdBalance(requiredAmount: bigint): Promise<boolean> {
     try {
-      // TODO: Query USPD token balance
-      return true; // Placeholder
+      // Query USPD token balance using ERC20 balanceOf
+      const balance = await this.publicClient.readContract({
+        address: this.uspdTokenAddress,
+        abi: [
+          {
+            name: 'balanceOf',
+            type: 'function',
+            stateMutability: 'view',
+            inputs: [{ type: 'address' }],
+            outputs: [{ type: 'uint256' }]
+          }
+        ],
+        functionName: 'balanceOf',
+        args: [this.walletClient.account?.address]
+      }) as bigint;
+
+      return balance >= requiredAmount;
     } catch (error) {
       console.error('❌ Failed to check USPD balance:', error);
       return false;
@@ -96,13 +114,37 @@ export class LiquidationService {
     position: StabilizerPosition,
     priceData: PriceData
   ): Promise<bigint> {
-    // TODO: Implement profit calculation
-    // This should account for:
-    // 1. Liquidation bonus (e.g., 5%)
-    // 2. Gas costs
-    // 3. Current collateral value vs debt
-    
-    return parseEther('0.05'); // Placeholder
+    try {
+      // Convert price to number for calculations
+      const ethPriceUsd = this.priceService.priceToNumber(priceData);
+      
+      // Calculate collateral value in USD
+      const collateralEth = Number(position.collateralAmount) / 1e18; // Convert from wei
+      const collateralValueUsd = collateralEth * ethPriceUsd;
+      
+      // Calculate debt value (USPD is pegged to USD)
+      const debtValueUsd = Number(position.uspdDebt) / 1e18; // Assuming 18 decimals
+      
+      // Liquidation bonus (typically 5-10%)
+      const liquidationBonusPercent = 5; // 5%
+      const bonusValue = (debtValueUsd * liquidationBonusPercent) / 100;
+      
+      // Estimate gas costs (rough estimate)
+      const estimatedGasCostEth = 0.01; // 0.01 ETH
+      const estimatedGasCostUsd = estimatedGasCostEth * ethPriceUsd;
+      
+      // Calculate net profit in USD
+      const grossProfitUsd = bonusValue;
+      const netProfitUsd = grossProfitUsd - estimatedGasCostUsd;
+      
+      // Convert back to ETH
+      const netProfitEth = netProfitUsd / ethPriceUsd;
+      
+      return parseEther(netProfitEth.toString());
+    } catch (error) {
+      console.error('❌ Failed to calculate liquidation profit:', error);
+      return 0n;
+    }
   }
 
   /**

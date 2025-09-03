@@ -144,6 +144,7 @@ class USPDLiquidatorBot {
       walletClient,
       this.contractAddresses.stabilizerNft,
       this.contractAddresses.uspdToken,
+      this.priceService,
       MIN_PROFIT_THRESHOLD
     )
 
