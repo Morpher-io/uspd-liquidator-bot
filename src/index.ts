@@ -179,7 +179,7 @@ class USPDLiquidatorBot {
     this.startPositionMonitoring()
 
     // Watch for blockchain events
-    this.startEventWatching()
+    await this.startEventWatching()
 
     // Handle graceful shutdown
     this.setupGracefulShutdown()
@@ -231,7 +231,7 @@ class USPDLiquidatorBot {
     }, POSITION_UPDATE_INTERVAL)
   }
 
-  private startEventWatching() {
+  private async startEventWatching() {
     console.log('🎧 Starting blockchain event monitoring...')
     
     // Watch for new blocks
