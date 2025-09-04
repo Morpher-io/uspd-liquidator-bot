@@ -55,9 +55,10 @@ export class PositionService {
 
       // Get total supply of Stabilizer NFTs
       const totalSupply = await this.publicClient.readContract({
-        address: this.stabilizerNftAddress,
+        address: this.stabilizerNftAddress as `0x${string}`,
         abi: this.stabilizerNftAbi,
-        functionName: 'totalSupply'
+        functionName: 'totalSupply',
+        args: []
       });
 
       console.log(`📊 Found ${totalSupply} total Stabilizer NFTs`);
