@@ -78,17 +78,10 @@ export class AbiService {
   }
 
   /**
-   * Get the appropriate Etherscan API URL for the chain
+   * Get the Etherscan API URL (v2 uses single domain for all chains)
    */
   private getEtherscanApiUrl(): string {
-    switch (this.chainId) {
-      case 1: // Mainnet
-        return 'https://api.etherscan.io/v2/api';
-      case 11155111: // Sepolia
-        return 'https://api-sepolia.etherscan.io/v2/api';
-      default:
-        throw new Error(`Unsupported chain ID for Etherscan: ${this.chainId}`);
-    }
+    return 'https://api.etherscan.io/v2/api';
   }
 
   /**
