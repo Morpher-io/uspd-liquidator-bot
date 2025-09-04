@@ -13,7 +13,8 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "nodemon --exec tsx src/index.ts",
+    "dev:verbose": "nodemon --exec tsx src/index.ts --verbose",
     "build": "tsc",
     "start": "node dist/index.js",
     "start:prod": "tsx src/index.ts",
@@ -27,6 +28,7 @@
   "devDependencies": {
     "tsx": "^4.7.1",
     "typescript": "^5.9.2",
-    "@types/node": "^20.11.24"
+    "@types/node": "^20.11.24",
+    "nodemon": "^3.0.2"
   }
 }
