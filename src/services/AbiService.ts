@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Address } from 'viem';
+import { EtherscanResponse } from '../types/etherscan.js';
 
 export interface ContractAbi {
   address: Address;
@@ -61,7 +62,7 @@ export class AbiService {
       throw new Error(`Etherscan API request failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data: EtherscanResponse = await response.json();
     
     if (data.status !== '1') {
       if (data.message === 'NOTOK' && data.result === 'Contract source code not verified') {
