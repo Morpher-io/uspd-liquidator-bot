@@ -134,6 +134,7 @@ class USPDLiquidatorBot {
     this.positionService = new PositionService(
       publicClient, 
       this.contractAddresses.stabilizerNft,
+      this.contractAddresses.stabilizerImpl,
       this.contractAddresses.positionEscrowImpl,
       this.abiService,
       LIQUIDATOR_NFT_ID
@@ -249,8 +250,8 @@ class USPDLiquidatorBot {
       }
     })
 
-    // Watch for new Stabilizer NFT positions - we'll get the ABI dynamically
-    const stabilizerAbi = await this.abiService.getContractAbi(this.contractAddresses.stabilizerNft);
+    // Watch for new Stabilizer NFT positions - we'll get the ABI from implementation
+    const stabilizerAbi = await this.abiService.getContractAbi(this.contractAddresses.stabilizerImpl);
     const positionCreatedEvent = stabilizerAbi.find(item => 
       item.type === 'event' && item.name === 'StabilizerPositionCreated'
     );

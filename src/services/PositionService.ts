@@ -19,6 +19,7 @@ export class PositionService {
   private positions: Map<string, StabilizerPosition> = new Map();
   private positionEscrowAddresses: Map<string, Address> = new Map();
   private stabilizerNftAddress: Address;
+  private stabilizerImplAddress: Address;
   private positionEscrowImplAddress: Address;
   private publicClient: PublicClient;
   private liquidatorNftId: bigint;
@@ -29,12 +30,14 @@ export class PositionService {
   constructor(
     publicClient: PublicClient, 
     stabilizerNftAddress: Address, 
+    stabilizerImplAddress: Address,
     positionEscrowImplAddress: Address,
     abiService: AbiService,
     liquidatorNftId: bigint = 0n
   ) {
     this.publicClient = publicClient;
     this.stabilizerNftAddress = stabilizerNftAddress;
+    this.stabilizerImplAddress = stabilizerImplAddress;
     this.positionEscrowImplAddress = positionEscrowImplAddress;
     this.abiService = abiService;
     this.liquidatorNftId = liquidatorNftId;
@@ -89,8 +92,8 @@ export class PositionService {
     try {
       console.log('📋 Loading contract ABIs...');
       
-      // Load Stabilizer NFT ABI
-      this.stabilizerNftAbi = await this.abiService.getContractAbi(this.stabilizerNftAddress);
+      // Load Stabilizer Implementation ABI (for proxy contract)
+      this.stabilizerNftAbi = await this.abiService.getContractAbi(this.stabilizerImplAddress);
       
       // Load Position Escrow Implementation ABI
       this.positionEscrowAbi = await this.abiService.getContractAbi(this.positionEscrowImplAddress);

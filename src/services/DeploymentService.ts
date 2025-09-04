@@ -65,6 +65,7 @@ export class DeploymentService {
     
     return {
       stabilizerNft: deployment.deployment.contracts.stabilizer,
+      stabilizerImpl: deployment.deployment.contracts.stabilizerImpl,
       uspdToken: deployment.deployment.contracts.uspdToken,
       cuspdToken: deployment.deployment.contracts.cuspdToken,
       oracle: deployment.deployment.contracts.oracle,
