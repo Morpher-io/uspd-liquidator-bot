@@ -280,6 +280,13 @@ export class PositionService {
   }
 
   /**
+   * Get all active positions (with backed shares > 0)
+   */
+  getAllActivePositions(): StabilizerPosition[] {
+    return Array.from(this.positions.values()).filter(p => p.backedShares > 0n);
+  }
+
+  /**
    * Get statistics about monitored positions
    */
   getPositionStats(): {

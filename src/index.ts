@@ -22,6 +22,7 @@ const LIQUIDATOR_NFT_ID = BigInt(process.env.LIQUIDATOR_NFT_ID || '0')
 const MIN_PROFIT_THRESHOLD = process.env.MIN_PROFIT_THRESHOLD || '0.01'
 const PRICE_UPDATE_INTERVAL = parseInt(process.env.PRICE_UPDATE_INTERVAL || '30000') // 30 seconds
 const POSITION_UPDATE_INTERVAL = parseInt(process.env.POSITION_UPDATE_INTERVAL || '300000') // 5 minutes
+const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true' || process.argv.includes('--verbose')
 
 // Validate required environment variables
 if (!RPC_URL) {
@@ -200,6 +201,18 @@ class USPDLiquidatorBot {
           console.warn('⚠️ Price data is stale')
         }
 
+        // Log verbose information if enabled
+        if (VERBOSE_LOGGING) {
+          console.log(`💰 Current ETH price: $${ethPrice.toFixed(2)}`)
+          
+          // Get and log position statistics
+          const stats = this.positionService.getPositionStats()
+          console.log(`📊 Position stats: ${stats.active} active, ${stats.liquidatable} liquidatable, avg ratio: ${stats.averageCollateralization.toFixed(2)}%`)
+          
+          // Log individual position details
+          this.logPositionDetails()
+        }
+
         // Check for liquidation opportunities when price updates
         await this.checkLiquidationOpportunities(priceData)
       } catch (error) {
@@ -284,6 +297,24 @@ class USPDLiquidatorBot {
   }
 
   private eventUnwatchers: (() => void)[] = []
+
+  private logPositionDetails() {
+    const positions = this.positionService.getAllActivePositions()
+    
+    if (positions.length === 0) {
+      console.log('📋 No active positions to display')
+      return
+    }
+
+    console.log('📋 Active Position Details:')
+    positions.forEach(position => {
+      const status = position.isLiquidatable ? '🔴 LIQUIDATABLE' : '🟢 HEALTHY'
+      const collateralEth = (Number(position.collateralAmount) / 1e18).toFixed(4)
+      const debtUspd = (Number(position.uspdDebt) / 1e18).toFixed(2)
+      
+      console.log(`  NFT #${position.nftId}: ${status} | Ratio: ${position.collateralizationRatio.toFixed(2)}% | Collateral: ${collateralEth} ETH | Debt: ${debtUspd} USPD`)
+    })
+  }
 
   private async checkLiquidationOpportunities(priceData: any) {
     try {
