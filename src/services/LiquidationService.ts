@@ -117,33 +117,54 @@ export class LiquidationService {
     try {
       // Convert price to number for calculations
       const ethPriceUsd = this.priceService.priceToNumber(priceData);
+      console.log(`💰 ETH Price: $${ethPriceUsd.toFixed(2)}`);
       
       // Calculate collateral value in USD
       const collateralEth = Number(position.collateralAmount) / 1e18; // Convert from wei
       const collateralValueUsd = collateralEth * ethPriceUsd;
+      console.log(`🏦 Collateral: ${collateralEth.toFixed(6)} ETH ($${collateralValueUsd.toFixed(2)})`);
       
       // Calculate debt value (USPD is pegged to USD)
       const debtValueUsd = Number(position.uspdDebt) / 1e18; // Assuming 18 decimals
-      console.log({debtValueUsd});
+      console.log(`💸 Debt: ${debtValueUsd.toFixed(2)} USPD ($${debtValueUsd.toFixed(2)})`);
       
       // Liquidation bonus (typically 5-10%)
       const liquidationBonusPercent = 5; // 5%
       const bonusValue = (debtValueUsd * liquidationBonusPercent) / 100;
+      console.log(`🎁 Liquidation bonus (${liquidationBonusPercent}%): $${bonusValue.toFixed(2)}`);
       
       // Estimate gas costs (rough estimate)
       const estimatedGasCostEth = 0.01; // 0.01 ETH
       const estimatedGasCostUsd = estimatedGasCostEth * ethPriceUsd;
+      console.log(`⛽ Estimated gas cost: ${estimatedGasCostEth} ETH ($${estimatedGasCostUsd.toFixed(2)})`);
       
       // Calculate net profit in USD
       const grossProfitUsd = bonusValue;
       const netProfitUsd = grossProfitUsd - estimatedGasCostUsd;
+      console.log(`📊 Gross profit: $${grossProfitUsd.toFixed(2)}`);
+      console.log(`📊 Net profit: $${netProfitUsd.toFixed(2)}`);
       
       // Convert back to ETH
       const netProfitEth = netProfitUsd / ethPriceUsd;
+      console.log(`💎 Net profit in ETH: ${netProfitEth.toFixed(8)} ETH`);
       
-      return parseEther(netProfitEth.toString());
+      // Handle negative or very small profits
+      if (netProfitEth <= 0) {
+        console.log(`⚠️ Negative or zero profit, returning 0`);
+        return 0n;
+      }
+      
+      // Convert to wei, but handle precision issues
+      const netProfitEthString = netProfitEth.toFixed(18); // Use full precision
+      console.log(`🔢 Converting to wei: ${netProfitEthString} ETH`);
+      
+      const result = parseEther(netProfitEthString);
+      console.log(`✅ Final result: ${result.toString()} wei`);
+      
+      return result;
     } catch (error) {
       console.error('❌ Failed to calculate liquidation profit:', error);
+      console.error('Error details:', error);
       return 0n;
     }
   }
