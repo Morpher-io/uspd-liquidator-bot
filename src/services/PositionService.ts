@@ -133,7 +133,7 @@ export class PositionService {
       }) as Address;
 
       // Get position data from escrow
-      const [collateralAmount, backedShares] = await Promise.all([
+      const [collateralAmount, backedShares, uspdDebt] = await Promise.all([
         this.publicClient.readContract({
           address: positionEscrowAddress,
           abi: this.positionEscrowAbi,
@@ -143,11 +143,19 @@ export class PositionService {
           address: positionEscrowAddress,
           abi: this.positionEscrowAbi,
           functionName: 'backedPoolShares'
+        }),
+        // Get actual USPD debt amount (converts cUSPD shares to USPD)
+        this.publicClient.readContract({
+          address: positionEscrowAddress,
+          abi: this.positionEscrowAbi,
+          functionName: 'getUspdDebt'
         })
       ]);
 
-      // Calculate USPD debt from backed shares (1:1 ratio typically)
-      const uspdDebt = backedShares;
+      // Log the difference between cUSPD shares and actual USPD debt
+      const backedSharesNumber = Number(backedShares as bigint) / 1e18;
+      const uspdDebtNumber = Number(uspdDebt as bigint) / 1e18;
+      console.log(`📊 Position ${nftId}: ${backedSharesNumber.toFixed(2)} cUSPD shares → ${uspdDebtNumber.toFixed(2)} USPD debt`);
 
       // Store position
       const position: StabilizerPosition = {
