@@ -79,13 +79,33 @@ POSITION_UPDATE_INTERVAL=300000    # Position update interval (5 minutes)
 ```
 
 ### 3. Run the Bot
+
+**Option A: Build and run (recommended for production)**
 ```bash
+npm run build
 npm start
 ```
 
-For verbose logging:
+**Option B: Run directly with TypeScript (development)**
 ```bash
+npm run start:dev
+```
+
+**Option C: Using Bun (fastest startup)**
+```bash
+bun src/index.ts
+```
+
+For verbose logging with any option:
+```bash
+# With npm (after build)
 npm start -- --verbose
+
+# With npm (direct TypeScript)
+npm run start:dev -- --verbose
+
+# With bun
+bun src/index.ts --verbose
 ```
 
 ## ⚙️ Configuration Guide

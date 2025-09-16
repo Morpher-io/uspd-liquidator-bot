@@ -17,7 +17,7 @@
     "dev:verbose": "nodemon --exec tsx src/index.ts --verbose",
     "build": "tsc",
     "start": "node dist/index.js",
-    "start:prod": "tsx src/index.ts",
+    "start:dev": "tsx src/index.ts",
     "clean": "rm -rf dist",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
