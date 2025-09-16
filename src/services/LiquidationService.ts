@@ -124,6 +124,7 @@ export class LiquidationService {
       
       // Calculate debt value (USPD is pegged to USD)
       const debtValueUsd = Number(position.uspdDebt) / 1e18; // Assuming 18 decimals
+      console.log({debtValueUsd});
       
       // Liquidation bonus (typically 5-10%)
       const liquidationBonusPercent = 5; // 5%
