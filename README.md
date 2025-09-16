@@ -2,6 +2,9 @@
 
 **Turn market volatility into profit opportunities!** The USPD Liquidation Bot automatically monitors and liquidates undercollateralized positions in the [USPD protocol](https://uspd.io), earning you liquidation bonuses while helping maintain the stability of the US Permissionless Dollar.
 
+![USPD Liquidation Bot in Action](screenshot.png)
+*The bot automatically discovers positions, calculates profitability, and executes liquidations with detailed logging*
+
 ## 💰 Why Run a Liquidation Bot?
 
 **Liquidation rewards are substantial and consistent:**
