@@ -48,6 +48,35 @@ export class PositionService {
   }
 
   /**
+   * Format a token amount with human-readable value in parentheses
+   */
+  private formatTokenAmount(amount: bigint, decimals: number = 18, symbol: string = ''): string {
+    const scaled = Number(amount) / Math.pow(10, decimals);
+    return `${amount.toString()} ${symbol}(${scaled.toFixed(4)} ${symbol})`.trim();
+  }
+
+  /**
+   * Format ETH amount with human-readable value
+   */
+  private formatEthAmount(amount: bigint): string {
+    return this.formatTokenAmount(amount, 18, 'ETH ');
+  }
+
+  /**
+   * Format USPD amount with human-readable value
+   */
+  private formatUspdAmount(amount: bigint): string {
+    return this.formatTokenAmount(amount, 18, 'USPD ');
+  }
+
+  /**
+   * Format cUSPD shares with human-readable value
+   */
+  private formatCuspdAmount(amount: bigint): string {
+    return this.formatTokenAmount(amount, 18, 'cUSPD ');
+  }
+
+  /**
    * Initialize positions by querying existing NFTs
    */
   async initializePositions(): Promise<void> {
@@ -165,10 +194,8 @@ export class PositionService {
       const uspdDebt = (backedShares as bigint) * (yieldFactor as bigint) / FACTOR_PRECISION;
 
       // Log the conversion
-      const backedSharesNumber = Number(backedShares as bigint) / 1e18;
-      const uspdDebtNumber = Number(uspdDebt) / 1e18;
       const yieldFactorNumber = Number(yieldFactor as bigint) / 1e18;
-      console.log(`📊 Position ${nftId}: ${backedSharesNumber.toFixed(2)} cUSPD shares × ${yieldFactorNumber.toFixed(4)} yield factor → ${uspdDebtNumber.toFixed(2)} USPD debt`);
+      console.log(`📊 Position ${nftId}: ${this.formatCuspdAmount(backedShares as bigint)}shares × ${yieldFactorNumber.toFixed(4)} yield factor → ${this.formatUspdAmount(uspdDebt)}debt`);
 
       // Store position
       const position: StabilizerPosition = {

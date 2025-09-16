@@ -313,7 +313,7 @@ class USPDLiquidatorBot {
       const collateralEth = (Number(position.collateralAmount) / 1e18).toFixed(4)
       const debtUspd = (Number(position.uspdDebt) / 1e18).toFixed(2)
       
-      console.log(`  NFT #${position.nftId}: ${status} | Ratio: ${position.collateralizationRatio.toFixed(2)}% | Collateral: ${collateralEth} ETH | Debt: ${debtUspd} USPD`)
+      console.log(`  NFT #${position.nftId}: ${status} | Ratio: ${position.collateralizationRatio.toFixed(2)}% | Collateral: ${position.collateralAmount} (${collateralEth} ETH) | Debt: ${position.uspdDebt} (${debtUspd} USPD)`)
     })
   }
 

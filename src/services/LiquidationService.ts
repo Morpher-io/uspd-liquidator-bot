@@ -34,6 +34,28 @@ export class LiquidationService {
   }
 
   /**
+   * Format a token amount with human-readable value in parentheses
+   */
+  private formatTokenAmount(amount: bigint, decimals: number = 18, symbol: string = ''): string {
+    const scaled = Number(amount) / Math.pow(10, decimals);
+    return `${amount.toString()} ${symbol}(${scaled.toFixed(4)} ${symbol})`.trim();
+  }
+
+  /**
+   * Format ETH amount with human-readable value
+   */
+  private formatEthAmount(amount: bigint): string {
+    return this.formatTokenAmount(amount, 18, 'ETH ');
+  }
+
+  /**
+   * Format USPD amount with human-readable value
+   */
+  private formatUspdAmount(amount: bigint): string {
+    return this.formatTokenAmount(amount, 18, 'USPD ');
+  }
+
+  /**
    * Attempt to liquidate a position
    */
   async liquidatePosition(
@@ -48,7 +70,7 @@ export class LiquidationService {
       const hasEnoughUspd = await this.checkUspdBalance(requiredUspd);
       
       if (!hasEnoughUspd) {
-        console.log(`💰 Need ${requiredUspd} USPD for liquidation`);
+        console.log(`💰 Need ${this.formatUspdAmount(requiredUspd)} for liquidation`);
         return { success: false, error: 'Insufficient USPD balance' };
       }
 
@@ -56,13 +78,13 @@ export class LiquidationService {
       const expectedProfit = await this.calculateLiquidationProfit(position, priceData);
       
       if (expectedProfit < this.minProfitThreshold) {
-        console.log(`📉 Liquidation profit too low: ${expectedProfit} ETH`);
+        console.log(`📉 Liquidation profit too low: ${this.formatEthAmount(expectedProfit)}`);
         return { success: false, error: 'Profit below threshold' };
       }
 
       // 3. Execute liquidation transaction
-      console.log(`💎 Expected profit: ${expectedProfit} ETH`);
-      console.log(`💰 Required USPD: ${requiredUspd}`);
+      console.log(`💎 Expected profit: ${this.formatEthAmount(expectedProfit)}`);
+      console.log(`💰 Required USPD: ${this.formatUspdAmount(requiredUspd)}`);
       
       // TODO: Implement actual liquidation transaction
       // This would call StabilizerNFT.liquidatePosition()
@@ -159,7 +181,7 @@ export class LiquidationService {
       console.log(`🔢 Converting to wei: ${netProfitEthString} ETH`);
       
       const result = parseEther(netProfitEthString);
-      console.log(`✅ Final result: ${result.toString()} wei`);
+      console.log(`✅ Final result: ${this.formatEthAmount(result)}`);
       
       return result;
     } catch (error) {
