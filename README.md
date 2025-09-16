@@ -8,7 +8,7 @@
 ## 💰 Why Run a Liquidation Bot?
 
 **Liquidation rewards are substantial and consistent:**
-- **5-10% liquidation bonus** on every successful liquidation
+- **5% liquidation bonus** on every successful liquidation
 - **Automatic profit calculation** ensures only profitable liquidations are executed
 - **Real-time monitoring** catches opportunities as they emerge
 - **Tiered liquidation thresholds** - earlier NFT holders get better liquidation opportunities
@@ -19,7 +19,6 @@
 - ETH drops, position becomes undercollateralized
 - You liquidate and earn 5% bonus = **$115 profit**
 - Minus gas costs (~$45) = **~$70 net profit per liquidation**
-- Multiple liquidations per day during volatile markets = **significant daily earnings**
 
 ## 🏗️ How USPD Liquidations Work
 
@@ -28,22 +27,22 @@ The USPD protocol maintains its $1 peg through overcollateralized positions back
 **Key concepts:**
 - **Stabilizer Positions**: Individual collateralized debt positions backed by stETH
 - **Liquidation Threshold**: Typically 110-125% collateralization ratio
-- **Liquidation Bonus**: 5-10% reward for liquidators
+- **Liquidation Bonus**: 5% reward for liquidators
 - **Position Escrows**: Smart contracts holding the actual collateral
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ and npm
+- Node.js 20+ and npm/bun
 - An Ethereum wallet with some ETH for gas fees
-- USPD tokens for liquidations (can be acquired via DEX or minting)
+- USPD tokens for liquidations (can be acquired via minting)
 - Etherscan API key (free)
 - RPC endpoint (Alchemy, Infura, etc.)
 
 ### 1. Clone and Install
 ```bash
-git clone <repository-url>
-cd uspd-liquidation-bot
+git clone git@github.com:Morpher-io/uspd-liquidator-bot.git
+cd uspd-liquidator-bot
 npm install
 ```
 
