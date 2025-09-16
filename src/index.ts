@@ -137,6 +137,7 @@ class USPDLiquidatorBot {
       this.contractAddresses.stabilizerNft,
       this.contractAddresses.stabilizerImpl,
       this.contractAddresses.positionEscrowImpl,
+      this.contractAddresses.rateContract,
       this.abiService,
       LIQUIDATOR_NFT_ID
     )

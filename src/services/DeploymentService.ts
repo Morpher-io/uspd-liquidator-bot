@@ -72,6 +72,7 @@ export class DeploymentService {
       reporter: deployment.deployment.contracts.reporter,
       insuranceEscrow: deployment.deployment.contracts.insuranceEscrow,
       positionEscrowImpl: deployment.deployment.contracts.positionEscrowImpl,
+      rateContract: deployment.deployment.contracts.rateContract,
       stETHAddress: deployment.deployment.config.stETHAddress,
       uniswapRouter: deployment.deployment.config.uniswapRouter,
     };

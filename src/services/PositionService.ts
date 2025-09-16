@@ -21,17 +21,20 @@ export class PositionService {
   private stabilizerNftAddress: Address;
   private stabilizerImplAddress: Address;
   private positionEscrowImplAddress: Address;
+  private rateContractAddress: Address;
   private publicClient: PublicClient;
   private liquidatorNftId: bigint;
   private abiService: AbiService;
   private stabilizerNftAbi: any[] = [];
   private positionEscrowAbi: any[] = [];
+  private rateContractAbi: any[] = [];
 
   constructor(
     publicClient: PublicClient, 
     stabilizerNftAddress: Address, 
     stabilizerImplAddress: Address,
     positionEscrowImplAddress: Address,
+    rateContractAddress: Address,
     abiService: AbiService,
     liquidatorNftId: bigint = 0n
   ) {
@@ -39,6 +42,7 @@ export class PositionService {
     this.stabilizerNftAddress = stabilizerNftAddress;
     this.stabilizerImplAddress = stabilizerImplAddress;
     this.positionEscrowImplAddress = positionEscrowImplAddress;
+    this.rateContractAddress = rateContractAddress;
     this.abiService = abiService;
     this.liquidatorNftId = liquidatorNftId;
   }
@@ -99,6 +103,9 @@ export class PositionService {
       // Load Position Escrow Implementation ABI
       this.positionEscrowAbi = await this.abiService.getContractAbi(this.positionEscrowImplAddress);
       
+      // Load Rate Contract ABI
+      this.rateContractAbi = await this.abiService.getContractAbi(this.rateContractAddress);
+      
       console.log('✅ Contract ABIs loaded successfully');
     } catch (error) {
       console.error('❌ Failed to load ABIs:', error);
@@ -132,8 +139,8 @@ export class PositionService {
         args: [nftId]
       }) as Address;
 
-      // Get position data from escrow
-      const [collateralAmount, backedShares, uspdDebt] = await Promise.all([
+      // Get position data from escrow and yield factor
+      const [collateralAmount, backedShares, yieldFactor] = await Promise.all([
         this.publicClient.readContract({
           address: positionEscrowAddress,
           abi: this.positionEscrowAbi,
@@ -144,18 +151,24 @@ export class PositionService {
           abi: this.positionEscrowAbi,
           functionName: 'backedPoolShares'
         }),
-        // Get actual USPD debt amount (converts cUSPD shares to USPD)
+        // Get current yield factor from rate contract
         this.publicClient.readContract({
-          address: positionEscrowAddress,
-          abi: this.positionEscrowAbi,
-          functionName: 'getUspdDebt'
+          address: this.rateContractAddress,
+          abi: this.rateContractAbi,
+          functionName: 'getYieldFactor'
         })
       ]);
 
-      // Log the difference between cUSPD shares and actual USPD debt
+      // Convert cUSPD shares to actual USPD debt using yield factor
+      // uspdDebt = backedShares * yieldFactor / FACTOR_PRECISION
+      const FACTOR_PRECISION = BigInt(1e18);
+      const uspdDebt = (backedShares as bigint) * (yieldFactor as bigint) / FACTOR_PRECISION;
+
+      // Log the conversion
       const backedSharesNumber = Number(backedShares as bigint) / 1e18;
-      const uspdDebtNumber = Number(uspdDebt as bigint) / 1e18;
-      console.log(`📊 Position ${nftId}: ${backedSharesNumber.toFixed(2)} cUSPD shares → ${uspdDebtNumber.toFixed(2)} USPD debt`);
+      const uspdDebtNumber = Number(uspdDebt) / 1e18;
+      const yieldFactorNumber = Number(yieldFactor as bigint) / 1e18;
+      console.log(`📊 Position ${nftId}: ${backedSharesNumber.toFixed(2)} cUSPD shares × ${yieldFactorNumber.toFixed(4)} yield factor → ${uspdDebtNumber.toFixed(2)} USPD debt`);
 
       // Store position
       const position: StabilizerPosition = {
